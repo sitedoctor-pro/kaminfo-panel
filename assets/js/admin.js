@@ -539,13 +539,23 @@ async function enablePush() {
     toast(err.message);
   }
 }
-function initPush(){
-  // خلينا غير الأزرار مخفيين إيلا كانوا الإشعارات مفعلين
-  if(typeof Notification!=='undefined'&&Notification.permission==='granted'){
-    qs('#enablePushBtn')?.style.setProperty('display','none');
-    qs('#enablePushBtn2')?.style.setProperty('display','none');
-  }
+function initPush() {
+  qs("#enablePushBtn")?.addEventListener("click", enablePush);
+  qs("#enablePushBtn2")?.addEventListener("click", enablePush);
+
+  // مسحنا السطر ديال السيرفيس وركر القديم باش نعطيو الطريق لـ OneSignal
 }
+
+document.addEventListener("DOMContentLoaded", async () => {
+  const user = await requireAdmin();
+  if (!user) return;
+  initNav();
+  initOrders();
+  initReviews();
+  initPush();
+  await refreshAll();
+  bindRealtime();
+});
 
 /* DASHBOARD MAJOR FIXES OVERRIDES */
 function chartOptions() {
