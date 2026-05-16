@@ -6,6 +6,7 @@ let orders = [],
   notifications = [],
   charts = {},
   realtimeBound = false;
+
 function toast(msg) {
   const el = qs("#toast");
   if (!el) return;
@@ -32,6 +33,7 @@ function fmtDate(s) {
 function csvEscape(v) {
   return `"${String(v ?? "").replaceAll('"', '""')}"`;
 }
+
 async function requireAdmin() {
   const {
     data: { session },
@@ -52,6 +54,7 @@ async function requireAdmin() {
   await logLogin(session.user);
   return session.user;
 }
+
 async function logLogin(user) {
   try {
     await sb
@@ -63,6 +66,7 @@ async function logLogin(user) {
       });
   } catch (e) {}
 }
+
 function initNav() {
   qsa(".side-nav button").forEach((btn) =>
     btn.addEventListener("click", () => {
@@ -84,6 +88,7 @@ function initNav() {
     location.href = "login.html";
   });
 }
+
 async function refreshAll() {
   await Promise.all([
     loadAnalytics(),
@@ -92,6 +97,7 @@ async function refreshAll() {
     loadNotifications(),
   ]);
 }
+
 async function loadAnalytics() {
   const since24 = new Date(Date.now() - 24 * 3600e3).toISOString(),
     since7 = new Date(Date.now() - 7 * 24 * 3600e3).toISOString(),
@@ -134,14 +140,26 @@ async function loadAnalytics() {
   renderOrdersChart((oDaily || []).reverse());
   renderReviewsChart((rDaily || []).reverse());
 }
+
 function chartOptions() {
   return {
     responsive: true,
     maintainAspectRatio: false,
+    interaction: {
+      mode: "index",
+      intersect: false,
+    },
     plugins: {
       legend: {
         labels: {
           color: "#f5f7ff",
+        },
+      },
+      tooltip: {
+        enabled: true,
+        callbacks: {
+          label: (context) =>
+            `${context.dataset.label}: ${context.parsed.y ?? context.raw}`,
         },
       },
     },
@@ -189,6 +207,7 @@ function renderTraffic(rows) {
     options: chartOptions(),
   });
 }
+
 function renderOrdersChart(rows) {
   const el = qs("#ordersChart");
   if (!el) return;
@@ -209,6 +228,7 @@ function renderOrdersChart(rows) {
     options: chartOptions(),
   });
 }
+
 function renderReviewsChart(rows) {
   const el = qs("#reviewsChart");
   if (!el) return;
@@ -235,6 +255,7 @@ function renderReviewsChart(rows) {
     options: chartOptions(),
   });
 }
+
 async function loadOrders() {
   let query = sb
     .from("orders")
@@ -250,348 +271,6 @@ async function loadOrders() {
   }
   orders = data || [];
   renderOrders();
-}
-function renderOrders() {
-  qs("#ordersTable").innerHTML = orders
-    .map(
-      (o) =>
-        `<tr><td>${fmtDate(o.created_at)}</td><td>${escapeHtml(o.customer_name)}</td><td>${escapeHtml(o.phone)}</td><td>${escapeHtml(o.city)}</td><td>${escapeHtml(o.address)}</td><td>${escapeHtml(o.pad_choice)}</td><td>${o.quantity}</td><td>${o.total_price} ${o.currency}</td><td><select class="status-select" data-id="${o.id}">${["new", "confirmed", "processing", "shipped", "delivered", "cancelled"].map((s) => `<option value="${s}" ${o.status === s ? "selected" : ""}>${s}</option>`).join("")}</select></td><td><button class="btn btn-danger delete-order" data-id="${o.id}" type="button">×</button></td></tr>`,
-    )
-    .join("");
-}
-function initOrders() {
-  qs("#orderStatusFilter")?.addEventListener("change", loadOrders);
-
-  qs("#ordersTable")?.addEventListener("change", async (e) => {
-    const sel = e.target.closest(".status-select");
-    if (!sel) return;
-
-    const { error } = await sb
-      .from("orders")
-      .update({ status: sel.value })
-      .eq("id", sel.dataset.id);
-
-    if (error) toast(error.message);
-    else toast("Order updated");
-  });
-
-  qs("#ordersTable")?.addEventListener("click", async (e) => {
-    const btn = e.target.closest(".delete-order");
-    if (!btn) return;
-
-    const { error } = await sb.from("orders").delete().eq("id", btn.dataset.id);
-
-    if (error) {
-      toast(error.message);
-      return;
-    }
-
-    toast("Order deleted");
-    loadOrders();
-    loadAnalytics();
-  });
-
-  qs("#clearOrdersBtn")?.addEventListener("click", async () => {
-    const { error } = await sb
-      .from("orders")
-      .delete()
-      .neq("id", "00000000-0000-0000-0000-000000000000");
-
-    if (error) {
-      toast(error.message);
-      return;
-    }
-
-    toast("Orders cleared");
-    loadOrders();
-    loadAnalytics();
-  });
-
-  qs("#exportOrdersBtn")?.addEventListener("click", () => {
-    const headers = [
-      "Date",
-      "Customer Name",
-      "Phone",
-      "City",
-      "Address",
-      "Quantity",
-      "Keyboard",
-      "Mouse",
-      "Pad",
-      "Notes",
-      "Unit Price",
-      "Total Price",
-      "Currency",
-      "Status",
-    ];
-    const rows = orders.map((o) => [
-      fmtDate(o.created_at),
-      o.customer_name,
-      o.phone,
-      o.city,
-      o.address,
-      o.quantity,
-      o.keyboard_choice,
-      o.mouse_choice,
-      o.pad_choice,
-      o.notes,
-      o.unit_price,
-      o.total_price,
-      o.currency,
-      o.status,
-    ]);
-    const csv = [headers, ...rows]
-      .map((r) => r.map(csvEscape).join(","))
-      .join("\\n");
-    const blob = new Blob(["\\ufeff" + csv], {
-      type: "text/csv;charset=utf-8;",
-    });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `kaminfo-orders-${new Date().toISOString().slice(0, 10)}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-  });
-}
-async function loadReviews() {
-  const { data, error } = await sb
-    .from("reviews")
-    .select("*")
-    .order("created_at", { ascending: false })
-    .limit(200);
-  if (error) {
-    toast(error.message);
-    return;
-  }
-  reviews = data || [];
-  renderReviews();
-}
-function renderReviews() {
-  qs("#reviewsAdminGrid").innerHTML = reviews
-    .map(
-      (r) =>
-        `<article class="review-card glass"><span class="eyebrow">${escapeHtml(r.status)}</span><h3>${escapeHtml(r.customer_name)} ${r.city ? " - " + escapeHtml(r.city) : ""}</h3><strong>${r.emoji || ""} ${"★".repeat(r.rating)}${"☆".repeat(5 - r.rating)}</strong><p>${escapeHtml(r.review_text)}</p><small>${fmtDate(r.created_at)}</small><div class="review-actions"><button class="btn btn-success review-approve" data-id="${r.id}" type="button">Approve</button><button class="btn btn-danger review-reject" data-id="${r.id}" type="button">Reject</button><button class="btn btn-danger review-delete" data-id="${r.id}" type="button">×</button></div></article>`,
-    )
-    .join("");
-}
-function initReviews() {
-  qs("#reviewsAdminGrid")?.addEventListener("click", async (e) => {
-    const approve = e.target.closest(".review-approve");
-    const reject = e.target.closest(".review-reject");
-    const del = e.target.closest(".review-delete");
-
-    if (!approve && !reject && !del) return;
-
-    const id = (approve || reject || del).dataset.id;
-
-    if (del) {
-      const { error } = await sb.from("reviews").delete().eq("id", id);
-
-      if (error) {
-        toast(error.message);
-        return;
-      }
-
-      toast("Review deleted");
-      loadReviews();
-      loadAnalytics();
-      return;
-    }
-
-    const { error } = await sb
-      .from("reviews")
-      .update({ status: approve ? "approved" : "rejected" })
-      .eq("id", id);
-
-    if (error) toast(error.message);
-    else {
-      toast(approve ? "Review approved" : "Review rejected");
-      loadReviews();
-      loadAnalytics();
-    }
-  });
-
-  qs("#clearReviewsBtn")?.addEventListener("click", async () => {
-    const { error } = await sb
-      .from("reviews")
-      .delete()
-      .neq("id", "00000000-0000-0000-0000-000000000000");
-
-    if (error) {
-      toast(error.message);
-      return;
-    }
-
-    toast("Reviews cleared");
-    loadReviews();
-    loadAnalytics();
-  });
-}
-async function loadNotifications() {
-  const { data, error } = await sb
-    .from("notification_events")
-    .select("*")
-    .order("created_at", { ascending: false })
-    .limit(100);
-  if (error) return;
-  notifications = data || [];
-  qs("#notificationsTable").innerHTML = notifications
-    .map(
-      (n) =>
-        `<tr><td>${fmtDate(n.created_at)}</td><td>${escapeHtml(n.event_type)}</td><td>${escapeHtml(n.title)}</td><td>${escapeHtml(n.body)}</td><td>${n.is_sent ? "Yes" : "No"}</td></tr>`,
-    )
-    .join("");
-}
-function bindRealtime() {
-  if (realtimeBound) return;
-  realtimeBound = true;
-  sb.channel("admin-live")
-    .on(
-      "postgres_changes",
-      { event: "INSERT", schema: "public", table: "orders" },
-      (payload) => {
-        toast("New order received");
-        orders.unshift(payload.new);
-        renderOrders();
-        loadAnalytics();
-        showLocalNotification(
-          "New Order",
-          `${payload.new.customer_name} - ${payload.new.city}`,
-        );
-      },
-    )
-    .on(
-      "postgres_changes",
-      { event: "INSERT", schema: "public", table: "reviews" },
-      (payload) => {
-        toast("New review pending approval");
-        loadReviews();
-        loadAnalytics();
-        showLocalNotification(
-          "New Review",
-          `${payload.new.customer_name} submitted ${payload.new.rating} stars`,
-        );
-      },
-    )
-    .on(
-      "postgres_changes",
-      { event: "INSERT", schema: "public", table: "notification_events" },
-      loadNotifications,
-    )
-    .subscribe();
-}
-function showLocalNotification(title, body) {
-  if (Notification.permission !== "granted") return;
-  navigator.serviceWorker?.ready.then((reg) =>
-    reg.showNotification(title, {
-      body,
-      icon: "/assets/img/logo.jpg",
-      badge: "/assets/img/logo.jpg",
-      data: "/",
-    }),
-  );
-}
-function urlBase64ToUint8Array(base64String) {
-  const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
-  const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
-  const raw = atob(base64);
-  return Uint8Array.from([...raw].map((ch) => ch.charCodeAt(0)));
-}
-async function enablePush() {
-  try {
-    if (!("serviceWorker" in navigator) || !("PushManager" in window))
-      throw new Error("Push notifications are not supported in this browser.");
-    if (!window.CAMINFO_VAPID_PUBLIC_KEY)
-      throw new Error(
-        "Add your public VAPID key in assets/js/supabase-config.js first.",
-      );
-    const perm = await Notification.requestPermission();
-    if (perm !== "granted")
-      throw new Error("Notification permission was not granted.");
-    const reg = await navigator.serviceWorker.register("/sw.js");
-    const sub = await reg.pushManager.subscribe({
-      userVisibleOnly: true,
-      applicationServerKey: urlBase64ToUint8Array(
-        window.CAMINFO_VAPID_PUBLIC_KEY,
-      ),
-    });
-    const json = sub.toJSON();
-    const {
-      data: { user },
-    } = await sb.auth.getUser();
-    const { error } = await sb
-      .from("push_subscriptions")
-      .upsert(
-        {
-          user_id: user.id,
-          endpoint: json.endpoint,
-          p256dh: json.keys.p256dh,
-          auth_secret: json.keys.auth,
-          user_agent: navigator.userAgent,
-          is_active: true,
-        },
-        { onConflict: "endpoint" },
-      );
-    if (error) throw error;
-    toast("Push notifications enabled ✅");
-  } catch (err) {
-    toast(err.message);
-  }
-}
-function initPush() {
-  qs("#enablePushBtn")?.addEventListener("click", enablePush);
-  qs("#enablePushBtn2")?.addEventListener("click", enablePush);
-
-  // مسحنا السطر ديال السيرفيس وركر القديم باش نعطيو الطريق لـ OneSignal
-}
-
-document.addEventListener("DOMContentLoaded", async () => {
-  const user = await requireAdmin();
-  if (!user) return;
-  initNav();
-  initOrders();
-  initReviews();
-  initPush();
-  await refreshAll();
-  bindRealtime();
-});
-
-/* DASHBOARD MAJOR FIXES OVERRIDES */
-function chartOptions() {
-  return {
-    responsive: true,
-    maintainAspectRatio: false,
-    interaction: {
-      mode: "index",
-      intersect: false,
-    },
-    plugins: {
-      legend: {
-        labels: {
-          color: "#f5f7ff",
-        },
-      },
-      tooltip: {
-        enabled: true,
-        callbacks: {
-          label: (context) =>
-            `${context.dataset.label}: ${context.parsed.y ?? context.raw}`,
-        },
-      },
-    },
-    scales: {
-      x: {
-        ticks: { color: "#b7bfdd" },
-        grid: { color: "rgba(255,255,255,.06)" },
-      },
-      y: {
-        ticks: { color: "#b7bfdd" },
-        grid: { color: "rgba(255,255,255,.06)" },
-        beginAtZero: true,
-      },
-    },
-  };
 }
 
 function renderOrders() {
@@ -678,6 +357,20 @@ function initOrders() {
   });
 }
 
+async function loadReviews() {
+  const { data, error } = await sb
+    .from("reviews")
+    .select("*")
+    .order("created_at", { ascending: false })
+    .limit(200);
+  if (error) {
+    toast(error.message);
+    return;
+  }
+  reviews = data || [];
+  renderReviews();
+}
+
 function renderReviews() {
   qs("#reviewsAdminGrid").innerHTML = reviews
     .map(
@@ -698,6 +391,7 @@ function initReviews() {
     const id = (approve || reject || del).dataset.id;
 
     if (del) {
+      if (!confirm("واش نتا متأكد باغي تمسح هاد التقييم؟ لا يمكن التراجع.")) return;
       const { error } = await sb.from("reviews").delete().eq("id", id);
 
       if (error) {
@@ -725,7 +419,7 @@ function initReviews() {
   });
 
   qs("#clearReviewsBtn")?.addEventListener("click", async () => {
-    if (!confirm("واش متأكد باغي تمسح كاع الطلبات؟ لا يمكن التراجع.")) return;
+    if (!confirm("واش متأكد باغي تمسح كاع الآراء؟ لا يمكن التراجع.")) return;
     const { error } = await sb
       .from("reviews")
       .delete()
@@ -758,6 +452,44 @@ async function loadNotifications() {
         `<tr><td>${fmtDate(n.created_at)}</td><td>${escapeHtml(n.event_type)}</td><td>${escapeHtml(n.title)}</td><td>${escapeHtml(n.body)}</td><td>${n.is_sent ? "Yes" : "No"}</td><td><button class="btn btn-danger delete-notification" data-id="${n.id}" type="button">×</button></td></tr>`,
     )
     .join("");
+}
+
+function bindRealtime() {
+  if (realtimeBound) return;
+  realtimeBound = true;
+  sb.channel("admin-live")
+    .on(
+      "postgres_changes",
+      { event: "INSERT", schema: "public", table: "orders" },
+      (payload) => {
+        toast("New order received");
+        orders.unshift(payload.new);
+        renderOrders();
+        loadAnalytics();
+      },
+    )
+    .on(
+      "postgres_changes",
+      { event: "INSERT", schema: "public", table: "reviews" },
+      (payload) => {
+        toast("New review pending approval");
+        loadReviews();
+        loadAnalytics();
+      },
+    )
+    .on(
+      "postgres_changes",
+      { event: "INSERT", schema: "public", table: "notification_events" },
+      loadNotifications,
+    )
+    .subscribe();
+}
+
+function urlBase64ToUint8Array(base64String) {
+  const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
+  const raw = atob(base64);
+  return Uint8Array.from([...raw].map((ch) => ch.charCodeAt(0)));
 }
 
 async function enablePush() {
@@ -824,13 +556,6 @@ function initPush() {
     qs("#enablePushBtn")?.style.setProperty("display", "none");
     qs("#enablePushBtn2")?.style.setProperty("display", "none");
   }
-
-  if (
-    "serviceWorker" in navigator &&
-    location.protocol !== "file:" &&
-    location.origin !== "null"
-  )
-    navigator.serviceWorker.register("/sw.js").catch(() => {});
 }
 
 function initDashboardActions() {
@@ -898,6 +623,14 @@ function initDashboardActions() {
   });
 }
 
-document.addEventListener("DOMContentLoaded", () => {
-  setTimeout(initDashboardActions, 0);
+document.addEventListener("DOMContentLoaded", async () => {
+  const user = await requireAdmin();
+  if (!user) return;
+  initNav();
+  initOrders();
+  initReviews();
+  initPush();
+  initDashboardActions();
+  await refreshAll();
+  bindRealtime();
 });
