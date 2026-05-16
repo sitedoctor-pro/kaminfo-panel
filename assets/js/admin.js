@@ -485,77 +485,11 @@ function bindRealtime() {
     .subscribe();
 }
 
-function urlBase64ToUint8Array(base64String) {
-  const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
-  const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
-  const raw = atob(base64);
-  return Uint8Array.from([...raw].map((ch) => ch.charCodeAt(0)));
-}
-
-async function enablePush() {
-  try {
-    if (location.protocol === "file:" || location.origin === "null") {
-      toast("Push notifications require a deployed HTTPS origin.");
-      return;
-    }
-
-    if (!("serviceWorker" in navigator) || !("PushManager" in window))
-      throw new Error("Push notifications are not supported in this browser.");
-    if (!window.CAMINFO_VAPID_PUBLIC_KEY)
-      throw new Error("VAPID key is missing.");
-
-    const perm = await Notification.requestPermission();
-
-    if (perm !== "granted")
-      throw new Error("Notification permission was not granted.");
-
-    qs("#enablePushBtn")?.style.setProperty("display", "none");
-    qs("#enablePushBtn2")?.style.setProperty("display", "none");
-
-    const reg = await navigator.serviceWorker.register("/sw.js");
-    const sub = await reg.pushManager.subscribe({
-      userVisibleOnly: true,
-      applicationServerKey: urlBase64ToUint8Array(
-        window.CAMINFO_VAPID_PUBLIC_KEY,
-      ),
-    });
-    const json = sub.toJSON();
-    const {
-      data: { user },
-    } = await sb.auth.getUser();
-    const { error } = await sb
-      .from("push_subscriptions")
-      .upsert(
-        {
-          user_id: user.id,
-          endpoint: json.endpoint,
-          p256dh: json.keys.p256dh,
-          auth_secret: json.keys.auth,
-          user_agent: navigator.userAgent,
-          is_active: true,
-        },
-        { onConflict: "endpoint" },
-      );
-
-    if (error) throw error;
-
-    toast("Push notifications enabled ✅");
-  } catch (err) {
-    toast(err.message);
-  }
-}
-
 function initPush() {
-  qs("#enablePushBtn")?.addEventListener("click", enablePush);
-  qs("#enablePushBtn2")?.addEventListener("click", enablePush);
-
-  if (
-    typeof Notification !== "undefined" &&
-    Notification.permission === "granted"
-  ) {
-    qs("#enablePushBtn")?.style.setProperty("display", "none");
-    qs("#enablePushBtn2")?.style.setProperty("display", "none");
-  }
+  // مسحنا الأكواد القديمة كاملة باش OneSignal يخدم فخاطرو بلا ما يبرزطو حتى ملف.
+  // خفينا غير الزرار القدام باش ما يبقاوش باينين ويخربقوك.
+  qs("#enablePushBtn")?.style.setProperty("display", "none");
+  qs("#enablePushBtn2")?.style.setProperty("display", "none");
 }
 
 function initDashboardActions() {
