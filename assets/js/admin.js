@@ -15,6 +15,7 @@ function toast(msg) {
   clearTimeout(toast._t);
   toast._t = setTimeout(() => el.classList.remove("show"), 3500);
 }
+
 function escapeHtml(s = "") {
   return String(s ?? "").replace(
     /[&<>"']/g,
@@ -24,12 +25,14 @@ function escapeHtml(s = "") {
       ],
   );
 }
+
 function fmtDate(s) {
   return new Date(s).toLocaleString("fr-MA", {
     dateStyle: "short",
     timeStyle: "short",
   });
 }
+
 function csvEscape(v) {
   return `"${String(v ?? "").replaceAll('"', '""')}"`;
 }
@@ -332,14 +335,38 @@ function initOrders() {
   });
 
   qs("#exportOrdersBtn")?.addEventListener("click", () => {
-    const headers = ["الاسم", "المدينة", "العنوان", "الهاتف"];
+    const headers = [
+      "Date",
+      "Customer Name",
+      "Phone",
+      "City",
+      "Address",
+      "Quantity",
+      "Keyboard",
+      "Mouse",
+      "Pad",
+      "Notes",
+      "Unit Price",
+      "Total Price",
+      "Currency",
+      "Status",
+    ];
     const rows = orders.map((o) => [
+      fmtDate(o.created_at),
       o.customer_name,
+      o.phone,
       o.city,
       o.address,
-      o.phone,
+      o.quantity,
+      o.keyboard_choice,
+      o.mouse_choice,
+      o.pad_choice,
+      o.notes,
+      o.unit_price,
+      o.total_price,
+      o.currency,
+      o.status,
     ]);
-
     const csv = [headers, ...rows]
       .map((r) => r.map(csvEscape).join(","))
       .join("\n");
@@ -348,11 +375,9 @@ function initOrders() {
     });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
-
     a.href = url;
     a.download = `kaminfo-orders-${new Date().toISOString().slice(0, 10)}.csv`;
     a.click();
-
     URL.revokeObjectURL(url);
   });
 }
@@ -443,9 +468,7 @@ async function loadNotifications() {
     .order("created_at", { ascending: false })
     .limit(100);
   if (error) return;
-
   notifications = data || [];
-
   qs("#notificationsTable").innerHTML = notifications
     .map(
       (n) =>
@@ -486,8 +509,7 @@ function bindRealtime() {
 }
 
 function initPush() {
-  // مسحنا الأكواد القديمة كاملة باش OneSignal يخدم فخاطرو بلا ما يبرزطو حتى ملف.
-  // خفينا غير الزرار القدام باش ما يبقاوش باينين ويخربقوك.
+  // أخفينا الأزرار القديمة فقط، ومسحنا دوال التسجيل باش OneSignal يخدم بسلام
   qs("#enablePushBtn")?.style.setProperty("display", "none");
   qs("#enablePushBtn2")?.style.setProperty("display", "none");
 }
@@ -527,6 +549,7 @@ function initDashboardActions() {
   });
 
   qs("#clearAnalyticsBtn")?.addEventListener("click", async () => {
+    if (!confirm("واش متأكد باغي تمسح كاع الإحصائيات؟ لا يمكن التراجع.")) return;
     const { error } = await sb
       .from("page_views")
       .delete()
@@ -542,6 +565,7 @@ function initDashboardActions() {
   });
 
   qs("#clearNotificationsBtn")?.addEventListener("click", async () => {
+    if (!confirm("واش متأكد باغي تمسح كاع الإشعارات؟ لا يمكن التراجع.")) return;
     const { error } = await sb
       .from("notification_events")
       .delete()
