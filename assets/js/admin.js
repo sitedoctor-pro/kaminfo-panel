@@ -81,24 +81,16 @@ function initOrders() {
   });
   qs("#ordersTable")?.addEventListener("click", async (e) => {
     const btn = e.target.closest(".delete-order"); if (!btn) return;
-    if (!confirm("واش نتا متأكد باغي تمسح هاد الطلب؟")) return;
+    if (!confirm("واش نتا متأكد باغي تمسح هاد الطلب؟ لا يمكن التراجع.")) return;
     const { error } = await sb.from("orders").delete().eq("id", btn.dataset.id);
     if (error) { toast(error.message); return; }
     toast("Order deleted"); loadOrders(); loadAnalytics();
   });
   qs("#clearOrdersBtn")?.addEventListener("click", async () => {
-    if (!confirm("واش متأكد باغي تمسح كاع الطلبات؟")) return;
+    if (!confirm("واش متأكد باغي تمسح كاع الطلبات؟ لا يمكن التراجع.")) return;
     const { error } = await sb.from("orders").delete().neq("id", "00000000-0000-0000-0000-000000000000");
     if (error) { toast(error.message); return; }
     toast("Orders cleared"); loadOrders(); loadAnalytics();
-  });
-  qs("#exportOrdersBtn")?.addEventListener("click", () => {
-    const headers = ["الاسم", "المدينة", "العنوان", "الهاتف"];
-    const rows = orders.map((o) => [o.customer_name, o.city, o.address, o.phone]);
-    const csv = [headers, ...rows].map((r) => r.map(csvEscape).join(",")).join("\n");
-    const blob = new Blob(["\ufeff" + csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a"); a.href = url; a.download = `kaminfo-orders-${new Date().toISOString().slice(0, 10)}.csv`; a.click(); URL.revokeObjectURL(url);
   });
 }
 
@@ -118,7 +110,7 @@ function initReviews() {
     if (!approve && !reject && !del) return;
     const id = (approve || reject || del).dataset.id;
     if (del) {
-      if (!confirm("واش متأكد باغي تمسح التقييم؟")) return;
+      if (!confirm("واش متأكد باغي تمسح التقييم؟ لا يمكن التراجع.")) return;
       const { error } = await sb.from("reviews").delete().eq("id", id);
       if (error) { toast(error.message); return; }
       toast("Review deleted"); loadReviews(); loadAnalytics(); return;
@@ -126,24 +118,32 @@ function initReviews() {
     const { error } = await sb.from("reviews").update({ status: approve ? "approved" : "rejected" }).eq("id", id);
     if (error) toast(error.message); else { toast(approve ? "Review approved" : "Review rejected"); loadReviews(); loadAnalytics(); }
   });
-  qs("#clearReviewsBtn")?.addEventListener("click", async () => {
-    if (!confirm("واش متأكد باغي تمسح كاع التقييمات؟")) return;
-    const { error } = await sb.from("reviews").delete().neq("id", "00000000-0000-0000-0000-000000000000");
-    if (error) { toast(error.message); return; }
-    toast("Reviews cleared"); loadReviews(); loadAnalytics();
-  });
+}
+
+function showLocalNotification(title, body) {
+  if (Notification.permission === "granted") {
+    new Notification(title, { body: body, icon: "/assets/img/logo.jpg" });
+  }
 }
 
 function bindRealtime() {
   if (realtimeBound) return; realtimeBound = true;
   sb.channel("admin-live")
     .on("postgres_changes", { event: "INSERT", schema: "public", table: "orders" }, (payload) => {
-      toast("طلب جديد وصل! 🚀"); orders.unshift(payload.new); renderOrders(); loadAnalytics();
+      toast("طلب جديد! 🚀"); orders.unshift(payload.new); renderOrders(); loadAnalytics();
+      showLocalNotification("طلب جديد! 🚀", `${payload.new.customer_name} - ${payload.new.city}`);
     })
     .on("postgres_changes", { event: "INSERT", schema: "public", table: "reviews" }, (payload) => {
       toast("تقييم جديد! ⭐"); loadReviews(); loadAnalytics();
+      showLocalNotification("تقييم جديد! ⭐", `${payload.new.customer_name} عطاك تقييم`);
     })
     .subscribe();
+}
+
+function initPush() {
+  // هاد الجوج سطورا كيخفيو الزر الغوز ديال الإشعارات القديم باش نأكدو بلي الكود الجديد ترفع
+  qs("#enablePushBtn")?.style.setProperty("display", "none");
+  qs("#enablePushBtn2")?.style.setProperty("display", "none");
 }
 
 function initDashboardActions() {
@@ -156,14 +156,9 @@ function initDashboardActions() {
       if (section === "reviews") await loadReviews();
     }
   });
-  qs("#clearAnalyticsBtn")?.addEventListener("click", async () => {
-    if (!confirm("Are you sure?")) return;
-    const { error } = await sb.from("page_views").delete().neq("id", "00000000-0000-0000-0000-000000000000");
-    if (error) return; loadAnalytics();
-  });
 }
 
 document.addEventListener("DOMContentLoaded", async () => {
   const user = await requireAdmin(); if (!user) return;
-  initNav(); initOrders(); initReviews(); initDashboardActions(); await refreshAll(); bindRealtime();
+  initNav(); initOrders(); initReviews(); initPush(); initDashboardActions(); await refreshAll(); bindRealtime();
 });
