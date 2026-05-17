@@ -46,9 +46,7 @@ async function loadAnalytics() {
   renderTraffic((daily || []).reverse()); renderOrdersChart((oDaily || []).reverse()); renderReviewsChart((rDaily || []).reverse());
 }
 
-function chartOptions() {
-  return { responsive: true, maintainAspectRatio: false, interaction: { mode: "index", intersect: false }, plugins: { legend: { labels: { color: "#f5f7ff" } }, tooltip: { enabled: true } }, scales: { x: { ticks: { color: "#b7bfdd" }, grid: { color: "rgba(255,255,255,.06)" } }, y: { ticks: { color: "#b7bfdd" }, grid: { color: "rgba(255,255,255,.06)" }, beginAtZero: true } } };
-}
+function chartOptions() { return { responsive: true, maintainAspectRatio: false, interaction: { mode: "index", intersect: false }, plugins: { legend: { labels: { color: "#f5f7ff" } }, tooltip: { enabled: true } }, scales: { x: { ticks: { color: "#b7bfdd" }, grid: { color: "rgba(255,255,255,.06)" } }, y: { ticks: { color: "#b7bfdd" }, grid: { color: "rgba(255,255,255,.06)" }, beginAtZero: true } } }; }
 
 function renderTraffic(rows) {
   const el = qs("#trafficChart"); if (!el) return; charts.traffic?.destroy();
@@ -83,13 +81,13 @@ function initOrders() {
   });
   qs("#ordersTable")?.addEventListener("click", async (e) => {
     const btn = e.target.closest(".delete-order"); if (!btn) return;
-    if (!confirm("واش نتا متأكد باغي تمسح هاد الطلب؟")) return;
+    if (!confirm("واش نتا متأكد باغي تمسح هاد الطلب؟ لا يمكن التراجع.")) return;
     const { error } = await sb.from("orders").delete().eq("id", btn.dataset.id);
     if (error) { toast(error.message); return; }
     toast("Order deleted"); loadOrders(); loadAnalytics();
   });
   qs("#clearOrdersBtn")?.addEventListener("click", async () => {
-    if (!confirm("واش متأكد باغي تمسح كاع الطلبات؟")) return;
+    if (!confirm("واش متأكد باغي تمسح كاع الطلبات؟ لا يمكن التراجع.")) return;
     const { error } = await sb.from("orders").delete().neq("id", "00000000-0000-0000-0000-000000000000");
     if (error) { toast(error.message); return; }
     toast("Orders cleared"); loadOrders(); loadAnalytics();
@@ -112,7 +110,7 @@ function initReviews() {
     if (!approve && !reject && !del) return;
     const id = (approve || reject || del).dataset.id;
     if (del) {
-      if (!confirm("واش متأكد باغي تمسح التقييم؟")) return;
+      if (!confirm("واش متأكد باغي تمسح التقييم؟ لا يمكن التراجع.")) return;
       const { error } = await sb.from("reviews").delete().eq("id", id);
       if (error) { toast(error.message); return; }
       toast("Review deleted"); loadReviews(); loadAnalytics(); return;
@@ -121,7 +119,7 @@ function initReviews() {
     if (error) toast(error.message); else { toast(approve ? "Review approved" : "Review rejected"); loadReviews(); loadAnalytics(); }
   });
   qs("#clearReviewsBtn")?.addEventListener("click", async () => {
-    if (!confirm("واش متأكد باغي تمسح كاع التقييمات؟")) return;
+    if (!confirm("واش متأكد باغي تمسح كاع التقييمات؟ لا يمكن التراجع.")) return;
     const { error } = await sb.from("reviews").delete().neq("id", "00000000-0000-0000-0000-000000000000");
     if (error) { toast(error.message); return; }
     toast("Reviews cleared"); loadReviews(); loadAnalytics();
@@ -146,11 +144,6 @@ function bindRealtime() {
     .subscribe();
 }
 
-function initPush() {
-  qs("#enablePushBtn")?.style.setProperty("display", "none");
-  qs("#enablePushBtn2")?.style.setProperty("display", "none");
-}
-
 function initDashboardActions() {
   document.addEventListener("click", async (e) => {
     const refresh = e.target.closest(".refresh-section");
@@ -166,5 +159,5 @@ function initDashboardActions() {
 
 document.addEventListener("DOMContentLoaded", async () => {
   const user = await requireAdmin(); if (!user) return;
-  initNav(); initOrders(); initReviews(); initPush(); initDashboardActions(); await refreshAll(); bindRealtime();
+  initNav(); initOrders(); initReviews(); initDashboardActions(); await refreshAll(); bindRealtime();
 });
