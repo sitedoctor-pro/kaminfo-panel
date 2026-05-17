@@ -34,7 +34,7 @@ function initNav() {
   qs("#logoutBtn")?.addEventListener("click", async () => { await sb.auth.signOut(); location.href = "login.html"; });
 }
 
-async function refreshAll() { await Promise.all([ loadAnalytics(), loadOrders(), loadReviews(), loadNotifications() ]); }
+async function refreshAll() { await Promise.all([ loadAnalytics(), loadOrders(), loadReviews() ]); }
 
 async function loadAnalytics() {
   const since24 = new Date(Date.now() - 24 * 3600e3).toISOString(), since7 = new Date(Date.now() - 7 * 24 * 3600e3).toISOString(), since30 = new Date(Date.now() - 30 * 24 * 3600e3).toISOString();
@@ -81,16 +81,24 @@ function initOrders() {
   });
   qs("#ordersTable")?.addEventListener("click", async (e) => {
     const btn = e.target.closest(".delete-order"); if (!btn) return;
-    if (!confirm("واش نتا متأكد باغي تمسح هاد الطلب؟ لا يمكن التراجع.")) return;
+    if (!confirm("واش نتا متأكد باغي تمسح هاد الطلب؟")) return;
     const { error } = await sb.from("orders").delete().eq("id", btn.dataset.id);
     if (error) { toast(error.message); return; }
     toast("Order deleted"); loadOrders(); loadAnalytics();
   });
   qs("#clearOrdersBtn")?.addEventListener("click", async () => {
-    if (!confirm("واش متأكد باغي تمسح كاع الطلبات؟ لا يمكن التراجع.")) return;
+    if (!confirm("واش متأكد باغي تمسح كاع الطلبات؟")) return;
     const { error } = await sb.from("orders").delete().neq("id", "00000000-0000-0000-0000-000000000000");
     if (error) { toast(error.message); return; }
     toast("Orders cleared"); loadOrders(); loadAnalytics();
+  });
+  qs("#exportOrdersBtn")?.addEventListener("click", () => {
+    const headers = ["الاسم", "المدينة", "العنوان", "الهاتف"];
+    const rows = orders.map((o) => [o.customer_name, o.city, o.address, o.phone]);
+    const csv = [headers, ...rows].map((r) => r.map(csvEscape).join(",")).join("\n");
+    const blob = new Blob(["\ufeff" + csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a"); a.href = url; a.download = `kaminfo-orders-${new Date().toISOString().slice(0, 10)}.csv`; a.click(); URL.revokeObjectURL(url);
   });
 }
 
@@ -110,7 +118,7 @@ function initReviews() {
     if (!approve && !reject && !del) return;
     const id = (approve || reject || del).dataset.id;
     if (del) {
-      if (!confirm("واش متأكد باغي تمسح التقييم؟ لا يمكن التراجع.")) return;
+      if (!confirm("واش متأكد باغي تمسح التقييم؟")) return;
       const { error } = await sb.from("reviews").delete().eq("id", id);
       if (error) { toast(error.message); return; }
       toast("Review deleted"); loadReviews(); loadAnalytics(); return;
@@ -119,27 +127,21 @@ function initReviews() {
     if (error) toast(error.message); else { toast(approve ? "Review approved" : "Review rejected"); loadReviews(); loadAnalytics(); }
   });
   qs("#clearReviewsBtn")?.addEventListener("click", async () => {
-    if (!confirm("واش متأكد باغي تمسح كاع التقييمات؟ لا يمكن التراجع.")) return;
+    if (!confirm("واش متأكد باغي تمسح كاع التقييمات؟")) return;
     const { error } = await sb.from("reviews").delete().neq("id", "00000000-0000-0000-0000-000000000000");
     if (error) { toast(error.message); return; }
     toast("Reviews cleared"); loadReviews(); loadAnalytics();
   });
 }
 
-async function loadNotifications() {
-  const { data, error } = await sb.from("notification_events").select("*").order("created_at", { ascending: false }).limit(100);
-  if (error) return; notifications = data || [];
-  qs("#notificationsTable").innerHTML = notifications.map((n) => `<tr><td>${fmtDate(n.created_at)}</td><td>${escapeHtml(n.event_type)}</td><td>${escapeHtml(n.title)}</td><td>${escapeHtml(n.body)}</td><td>${n.is_sent ? "Yes" : "No"}</td><td><button class="btn btn-danger delete-notification" data-id="${n.id}" type="button">×</button></td></tr>`).join("");
-}
-
 function bindRealtime() {
   if (realtimeBound) return; realtimeBound = true;
   sb.channel("admin-live")
     .on("postgres_changes", { event: "INSERT", schema: "public", table: "orders" }, (payload) => {
-      toast("New order received"); orders.unshift(payload.new); renderOrders(); loadAnalytics();
+      toast("طلب جديد وصل! 🚀"); orders.unshift(payload.new); renderOrders(); loadAnalytics();
     })
     .on("postgres_changes", { event: "INSERT", schema: "public", table: "reviews" }, (payload) => {
-      toast("New review pending approval"); loadReviews(); loadAnalytics();
+      toast("تقييم جديد! ⭐"); loadReviews(); loadAnalytics();
     })
     .subscribe();
 }
@@ -152,8 +154,12 @@ function initDashboardActions() {
       if (section === "analytics") await loadAnalytics();
       if (section === "orders") await loadOrders();
       if (section === "reviews") await loadReviews();
-      if (section === "notifications") await loadNotifications();
     }
+  });
+  qs("#clearAnalyticsBtn")?.addEventListener("click", async () => {
+    if (!confirm("Are you sure?")) return;
+    const { error } = await sb.from("page_views").delete().neq("id", "00000000-0000-0000-0000-000000000000");
+    if (error) return; loadAnalytics();
   });
 }
 
