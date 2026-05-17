@@ -354,9 +354,70 @@ function bindRealtime() {
     .subscribe();
 }
 
+async function saveOneSignalSubscription() {
+  if (!window.OneSignalDeferred) {
+    toast("OneSignal مازال ما تحملش.");
+    return;
+  }
+
+  window.OneSignalDeferred.push(async function(OneSignal) {
+    try {
+      if (OneSignal.Notifications.permission !== true) {
+        await OneSignal.Notifications.requestPermission();
+      }
+
+      if (OneSignal.Notifications.permission !== true) {
+        toast("خاصك تسمح بالإشعارات من المتصفح.");
+        return;
+      }
+
+      if (OneSignal.User.PushSubscription.optedIn !== true) {
+        await OneSignal.User.PushSubscription.optIn();
+      }
+
+      const subscriptionId = OneSignal.User.PushSubscription.id;
+
+      if (!subscriptionId) {
+        toast("Subscription ID مازال ما وجدش. سد الصفحة وحلها مرة أخرى.");
+        return;
+      }
+
+      const { error } = await sb
+        .from("admin_push_subscriptions")
+        .upsert(
+          {
+            subscription_id: subscriptionId,
+            is_active: true,
+            user_agent: navigator.userAgent,
+            updated_at: new Date().toISOString()
+          },
+          {
+            onConflict: "subscription_id"
+          }
+        );
+
+      if (error) {
+        toast(error.message);
+        return;
+      }
+
+      toast("تم تفعيل الإشعارات على هذا الجهاز ✅");
+
+      qs("#enablePushBtn")?.style.setProperty("display", "none");
+      qs("#enablePushBtn2")?.style.setProperty("display", "none");
+    } catch (err) {
+      toast(err.message || "وقع مشكل فـ OneSignal");
+    }
+  });
+}
+
 function initPush() {
-  qs("#enablePushBtn")?.style.setProperty("display", "none");
-  qs("#enablePushBtn2")?.style.setProperty("display", "none");
+  qs("#enablePushBtn")?.addEventListener("click", saveOneSignalSubscription);
+  qs("#enablePushBtn2")?.addEventListener("click", saveOneSignalSubscription);
+
+  if (typeof Notification !== "undefined" && Notification.permission === "granted") {
+    saveOneSignalSubscription();
+  }
 }
 
 function initDashboardActions() {
