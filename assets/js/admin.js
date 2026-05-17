@@ -193,10 +193,21 @@ async function loadNotifications() {
 // هادي هي الدالة اللي كتعطيك الإشعار ملي كتكون التاب مفتوحة (بدون مشاكل ديال sw.js)
 function showLocalNotification(title, body) {
   if (Notification.permission === "granted") {
-    new Notification(title, { body: body, icon: "/assets/img/logo.jpg" });
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.ready.then((reg) => {
+        reg.showNotification(title, {
+          body: body,
+          icon: "/assets/img/logo.jpg",
+          badge: "/assets/img/logo.jpg"
+        });
+      }).catch(() => {
+        new Notification(title, { body: body, icon: "/assets/img/logo.jpg" });
+      });
+    } else {
+      new Notification(title, { body: body, icon: "/assets/img/logo.jpg" });
+    }
   }
 }
-
 function bindRealtime() {
   if (realtimeBound) return;
   realtimeBound = true;
