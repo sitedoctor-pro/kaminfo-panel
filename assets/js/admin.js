@@ -543,9 +543,9 @@ function initPush() {
   qs("#enablePushBtn")?.addEventListener("click", enablePush);
   qs("#enablePushBtn2")?.addEventListener("click", enablePush);
 
-  // مسحنا السطر ديال السيرفيس وركر القديم باش نعطيو الطريق لـ OneSignal
+  if ("serviceWorker" in navigator)
+    navigator.serviceWorker.register("/sw.js").catch(() => {});
 }
-
 document.addEventListener("DOMContentLoaded", async () => {
   const user = await requireAdmin();
   if (!user) return;
